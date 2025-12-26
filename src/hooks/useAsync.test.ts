@@ -122,13 +122,13 @@ describe('useAsync', () => {
   });
 
   it('keeps the latest result when earlier request resolves later', async () => {
-    let resolveFirst!: (v: string) => void;
-    let resolveSecond!: (v: string) => void;
+    let resolveFirst!: (value: string) => void;
+    let resolveSecond!: (value: string) => void;
 
     const mockAsyncFn = vi
       .fn()
-      .mockImplementationOnce(() => new Promise<string>((r) => (resolveFirst = r)))
-      .mockImplementationOnce(() => new Promise<string>((r) => (resolveSecond = r)));
+      .mockImplementationOnce(() => new Promise<string>(resolve => (resolveFirst = resolve)))
+      .mockImplementationOnce(() => new Promise<string>(resolve => (resolveSecond = resolve)));
 
     const { result } = renderHook(() => useAsync(mockAsyncFn, false));
 
