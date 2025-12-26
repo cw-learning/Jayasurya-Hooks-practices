@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useAsync } from './useAsync';
 
@@ -52,7 +52,9 @@ describe('useAsync', () => {
 
     expect(result.current.data).toBeNull();
 
-    await result.current.execute();
+    await act(async () => {
+      await result.current.execute();
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -78,14 +80,18 @@ describe('useAsync', () => {
     const mockAsyncFn = vi.fn(() => Promise.resolve('first result'));
     const { result } = renderHook(() => useAsync(mockAsyncFn, false));
 
-    await result.current.execute();
+    await act(async () => {
+      await result.current.execute();
+    });
     await waitFor(() => {
       expect(result.current.data).toBe('first result');
     });
 
     mockAsyncFn.mockImplementation(() => Promise.resolve('second result'));
 
-    await result.current.execute();
+    await act(async () => {
+      await result.current.execute();
+    });
 
     await waitFor(() => {
       expect(result.current.data).toBe('second result');
@@ -99,11 +105,13 @@ describe('useAsync', () => {
     const mockAsyncFn = vi.fn(() => Promise.resolve('result'));
     const { result } = renderHook(() => useAsync(mockAsyncFn, false));
 
-    const promise1 = result.current.execute();
-    const promise2 = result.current.execute();
-    const promise3 = result.current.execute();
+    await act(async () => {
+      const promise1 = result.current.execute();
+      const promise2 = result.current.execute();
+      const promise3 = result.current.execute();
 
-    await Promise.all([promise1, promise2, promise3]);
+      await Promise.all([promise1, promise2, promise3]);
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -111,5 +119,34 @@ describe('useAsync', () => {
 
     expect(result.current.data).toBe('result');
     expect(mockAsyncFn).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps the latest result when earlier request resolves later', async () => {
+    let resolveFirst!: (v: string) => void;
+    let resolveSecond!: (v: string) => void;
+
+    const mockAsyncFn = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<string>((r) => (resolveFirst = r)))
+      .mockImplementationOnce(() => new Promise<string>((r) => (resolveSecond = r)));
+
+    const { result } = renderHook(() => useAsync(mockAsyncFn, false));
+
+    await act(async () => {
+      const first = result.current.execute();
+      const second = result.current.execute();
+
+      // Resolve second request first, then first request
+      resolveSecond('second');
+      resolveFirst('first');
+
+      await Promise.all([first, second]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toBe('second');
+    });
+
+    expect(result.current.loading).toBe(false);
   });
 });
