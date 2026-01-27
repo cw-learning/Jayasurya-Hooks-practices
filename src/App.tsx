@@ -9,7 +9,7 @@ import { SummaryWidget } from './components/SummaryWidget';
 function App() {
   const [view, setView] = useState<'list' | 'summary'>('list');
   const [darkMode, setDarkMode] = useState(false);
-  
+
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
       <header className={`${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-md`}>
@@ -25,8 +25,8 @@ function App() {
                   className={`px-4 py-2 rounded-md ${
                     view === 'list'
                       ? 'bg-blue-500 text-white'
-                      : darkMode 
-                        ? 'bg-gray-700 text-gray-300' 
+                      : darkMode
+                        ? 'bg-gray-700 text-gray-300'
                         : 'bg-gray-200 text-gray-700'
                   }`}
                 >
@@ -37,8 +37,8 @@ function App() {
                   className={`px-4 py-2 rounded-md ${
                     view === 'summary'
                       ? 'bg-blue-500 text-white'
-                      : darkMode 
-                        ? 'bg-gray-700 text-gray-300' 
+                      : darkMode
+                        ? 'bg-gray-700 text-gray-300'
                         : 'bg-gray-200 text-gray-700'
                   }`}
                 >
@@ -46,13 +46,11 @@ function App() {
                 </button>
               </div>
             </div>
-            
+
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`px-4 py-2 rounded-md ${
-                darkMode 
-                  ? 'bg-yellow-400 text-gray-900' 
-                  : 'bg-gray-700 text-white'
+                darkMode ? 'bg-yellow-400 text-gray-900' : 'bg-gray-700 text-white'
               }`}
             >
               {darkMode ? '☀️ Light' : '🌙 Dark'}
@@ -60,12 +58,12 @@ function App() {
           </div>
         </div>
       </header>
-      
-      <main className="py-8">
-        {view === 'list' ? <TimerList /> : <SummaryWidget />}
-      </main>
-      
-      <footer className={`${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600'} mt-12`}>
+
+      <main className="py-8">{view === 'list' ? <TimerList /> : <SummaryWidget />}</main>
+
+      <footer
+        className={`${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-600'} mt-12`}
+      >
         <div className="max-w-7xl mx-auto px-6 py-4 text-center text-sm">
           <p>Timer Dashboard - Built with React, TypeScript, and Tailwind CSS</p>
           <p className="mt-1 text-xs">
