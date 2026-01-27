@@ -4,7 +4,7 @@ import { timerApi } from '../api/timerApi';
 
 export function useTimer(initialTimer: Timer) {
   const [timer, setTimer] = useState<Timer>(initialTimer);
-  const intervalRef = useRef<number | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clearTimerInterval = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -13,8 +13,14 @@ export function useTimer(initialTimer: Timer) {
     }
   }, []);
 
+  const isRunningRef = useRef(false);
+
+  useEffect(() => {
+    isRunningRef.current = timer.isRunning;
+  }, [timer.isRunning]);
+
   const start = useCallback(async () => {
-    if (timer.isRunning) return;
+    if (isRunningRef.current || intervalRef.current !== null) return;
 
     setTimer(prev => ({ ...prev, isRunning: true }));
 
@@ -23,31 +29,46 @@ export function useTimer(initialTimer: Timer) {
     }, 1000);
 
     try {
-      await timerApi.updateTimer(timer.id, { isRunning: true });
+      await timerApi.updateTimer(timerRef.current.id, { isRunning: true });
     } catch (error) {
       console.error('Failed to update timer:', error);
     }
-  }, [timer.id, timer.isRunning]);
+  }, []);
+
+  const timerRef = useRef(initialTimer);
+  useEffect(() => {
+    timerRef.current = timer;
+  }, [timer]);
 
   const pause = useCallback(async () => {
     clearTimerInterval();
 
-    let latestElapsed = 0;
+    setTimer(prev => ({ ...prev, isRunning: false }));
 
-    setTimer(prev => {
-      latestElapsed = prev.elapsed;
-      return { ...prev, isRunning: false };
-    });
-
+    const { id, elapsed } = timerRef.current;
     try {
-      await timerApi.updateTimer(timer.id, {
-        isRunning: false,
-        elapsed: latestElapsed,
-      });
+      await timerApi.updateTimer(id, { isRunning: false, elapsed });
     } catch (error) {
       console.error('Failed to pause timer:', error);
     }
-  }, [timer.id, clearTimerInterval]);
+  }, [clearTimerInterval]);
+
+  useEffect(() => {
+    setTimer(initialTimer);
+
+    // Reconcile interval with external source of truth
+    if (!initialTimer.isRunning) {
+      clearTimerInterval();
+      return;
+    }
+
+    // Optional: if you want to auto-start when external state says running
+    if (intervalRef.current === null) {
+      intervalRef.current = setInterval(() => {
+        setTimer(prev => ({ ...prev, elapsed: prev.elapsed + 1 }));
+      }, 1000);
+    }
+  }, [initialTimer, clearTimerInterval]);
 
   const reset = useCallback(async () => {
     clearTimerInterval();
