@@ -51,7 +51,7 @@ export function useAsync<T, TArgs extends readonly unknown[] = []>(
 ): UseAsyncResult<T, TArgs> {
   const [state, setState] = useState<AsyncState<T>>({
     value: null,
-    isLoading: false,
+    isLoading: immediate,
     error: null,
   });
 
@@ -70,41 +70,30 @@ export function useAsync<T, TArgs extends readonly unknown[] = []>(
   }, []);
 
   const execute = useCallback(async (...args: TArgs): Promise<T> => {
+    if (!isMountedRef.current) {
+      return asyncFunctionRef.current(...args);
+    }
+
     const requestId = ++latestRequestIdRef.current;
 
-    setState(prev => ({
-      ...prev,
-      isLoading: true,
-      error: null,
-    }));
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const response = await asyncFunctionRef.current(...args);
 
       if (isMountedRef.current && requestId === latestRequestIdRef.current) {
-        setState({
-          value: response,
-          isLoading: false,
-          error: null,
-        });
+        setState({ value: response, isLoading: false, error: null });
       }
 
       return response;
     } catch (caughtError: unknown) {
-      let error: Error;
-      if (caughtError instanceof Error) {
-        error = caughtError;
-      } else {
-        error = new Error(GENERIC_ASYNC_ERROR_MESSAGE);
-        (error as Error & { cause?: unknown }).cause = caughtError;
-      }
+      const error =
+        caughtError instanceof Error
+          ? caughtError
+          : Object.assign(new Error(GENERIC_ASYNC_ERROR_MESSAGE), { cause: caughtError });
 
       if (isMountedRef.current && requestId === latestRequestIdRef.current) {
-        setState({
-          value: null,
-          isLoading: false,
-          error,
-        });
+        setState({ value: null, isLoading: false, error });
       }
 
       throw error;
@@ -113,8 +102,15 @@ export function useAsync<T, TArgs extends readonly unknown[] = []>(
 
   useEffect(() => {
     if (!immediate) return;
-    (execute as () => Promise<T>)().catch(() => {
-      // Error is handled in state; no action needed here
+
+    if (asyncFunctionRef.current.length > 0) {
+      throw new Error('useAsync: immediate=true only supports zero-argument async functions');
+    }
+
+    const executeNoArgs = execute as unknown as () => Promise<T>;
+
+    void executeNoArgs().catch(() => {
+      // Intentionally ignored: `execute` already stores the error in hook state.
     });
   }, [execute, immediate]);
 

@@ -108,7 +108,6 @@ describe('useAsync', () => {
     const { result } = renderHook(() => useAsync(mockAsyncFn, false));
 
     await act(async () => {
-      // Using allSettled since earlier promises may be rejected with "cancelled"
       const promise1 = result.current.execute();
       const promise2 = result.current.execute();
       const promise3 = result.current.execute();
@@ -166,25 +165,19 @@ describe('useAsync', () => {
 
     expect(result.current.isLoading).toBe(false);
   });
-
   it('does not update state when execute is called after unmount', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     const mockAsyncFn = vi.fn(() => Promise.resolve('success'));
     const { result, unmount } = renderHook(() => useAsync(mockAsyncFn, false));
 
-    // Capture execute function before unmount
     const executeRef = result.current.execute;
-
     unmount();
 
-    // Call execute after unmount - should complete but not update state
-    await act(async () => {
-      const value = await executeRef();
-      // Execute completes successfully but doesn't update unmounted component
-      expect(value).toBe('success');
-    });
+    await expect(executeRef()).resolves.toBe('success');
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
 
-    // Async function should have been called
-    expect(mockAsyncFn).toHaveBeenCalledTimes(1);
+    consoleErrorSpy.mockRestore();
   });
 
   it('keeps the latest error when earlier request rejects later', async () => {
