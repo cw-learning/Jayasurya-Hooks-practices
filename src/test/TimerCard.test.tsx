@@ -31,13 +31,7 @@ describe('TimerCard Component', () => {
   });
 
   it('renders timer information correctly', () => {
-    render(
-      <TimerCard 
-        timer={mockTimer} 
-        onUpdate={mockOnUpdate} 
-        onDelete={mockOnDelete} 
-      />
-    );
+    render(<TimerCard timer={mockTimer} onUpdate={mockOnUpdate} onDelete={mockOnDelete} />);
 
     expect(screen.getByText('Test Timer')).toBeInTheDocument();
     expect(screen.getByText('Test Description')).toBeInTheDocument();
@@ -48,13 +42,7 @@ describe('TimerCard Component', () => {
     const updatedTimer = { ...mockTimer, isRunning: true };
     vi.mocked(timerApi.updateTimer).mockResolvedValue({ data: updatedTimer });
 
-    render(
-      <TimerCard 
-        timer={mockTimer} 
-        onUpdate={mockOnUpdate} 
-        onDelete={mockOnDelete} 
-      />
-    );
+    render(<TimerCard timer={mockTimer} onUpdate={mockOnUpdate} onDelete={mockOnDelete} />);
 
     const startButton = screen.getByText('Start');
     fireEvent.click(startButton);
@@ -69,14 +57,8 @@ describe('TimerCard Component', () => {
 
   it('increments elapsed time when running', async () => {
     const runningTimer = { ...mockTimer, isRunning: true };
-    
-    render(
-      <TimerCard 
-        timer={runningTimer} 
-        onUpdate={mockOnUpdate} 
-        onDelete={mockOnDelete} 
-      />
-    );
+
+    render(<TimerCard timer={runningTimer} onUpdate={mockOnUpdate} onDelete={mockOnDelete} />);
 
     // Fast-forward time by 2 seconds
     vi.advanceTimersByTime(2000);
@@ -87,13 +69,7 @@ describe('TimerCard Component', () => {
   });
 
   it('switches to edit mode when edit button is clicked', () => {
-    render(
-      <TimerCard 
-        timer={mockTimer} 
-        onUpdate={mockOnUpdate} 
-        onDelete={mockOnDelete} 
-      />
-    );
+    render(<TimerCard timer={mockTimer} onUpdate={mockOnUpdate} onDelete={mockOnDelete} />);
 
     const editButton = screen.getByText('Edit');
     fireEvent.click(editButton);
