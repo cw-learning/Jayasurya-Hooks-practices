@@ -148,11 +148,9 @@ describe('useAsync', () => {
       const first = result.current.execute();
       const second = result.current.execute();
 
-      // Ensure resolvers are assigned
       expect(resolveFirst).toBeTypeOf('function');
       expect(resolveSecond).toBeTypeOf('function');
 
-      // Resolve second request first, then first request
       resolveSecond!('second');
       resolveFirst!('first');
 
@@ -168,16 +166,19 @@ describe('useAsync', () => {
   it('does not update state when execute is called after unmount', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const mockAsyncFn = vi.fn(() => Promise.resolve('success'));
-    const { result, unmount } = renderHook(() => useAsync(mockAsyncFn, false));
+    try {
+      const mockAsyncFn = vi.fn(() => Promise.resolve('success'));
+      const { result, unmount } = renderHook(() => useAsync(mockAsyncFn, false));
 
-    const executeRef = result.current.execute;
-    unmount();
+      const executeRef = result.current.execute;
+      unmount();
 
-    await expect(executeRef()).resolves.toBe('success');
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
-
-    consoleErrorSpy.mockRestore();
+      await expect(executeRef()).resolves.toBe('success');
+      expect(mockAsyncFn).toHaveBeenCalledTimes(1);
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
   it('keeps the latest error when earlier request rejects later', async () => {
@@ -223,5 +224,12 @@ describe('useAsync', () => {
 
     expect(result.current.isLoading).toBe(false);
     expect(result.current.value).toBeNull();
+  });
+  it('throws when immediate=true is used with an async function that expects args', () => {
+    const mockAsyncFn = vi.fn(async (id: string) => `ok:${id}`);
+
+    expect(() =>
+      renderHook(() => useAsync(mockAsyncFn as unknown as () => Promise<string>, true))
+    ).toThrow(/immediate=true only supports zero-argument async functions/);
   });
 });
