@@ -29,17 +29,18 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // ❌ PROBLEM: Derived values recalculated on every render (no useMemo)
   const hours = Math.floor(elapsed / 3600);
   const minutes = Math.floor((elapsed % 3600) / 60);
   const seconds = elapsed % 60;
   const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  
+
   // Calculate percentage of day (expensive calculation, no memoization)
   const percentOfDay = (elapsed / 86400) * 100;
-  const progressColor = percentOfDay > 50 ? 'bg-red-500' : percentOfDay > 25 ? 'bg-yellow-500' : 'bg-green-500';
-  
+  const progressColor =
+    percentOfDay > 50 ? 'bg-red-500' : percentOfDay > 25 ? 'bg-yellow-500' : 'bg-green-500';
+
   // ❌ PROBLEM: API call in useEffect without proper error handling
   useEffect(() => {
     // Sync with API on mount
@@ -49,123 +50,137 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
         setIsRunning(response.data.isRunning);
       }
     });
-  }, []); // ❌ Missing dependency: timer.id
-  
+  }, [timer.id]);
+
   // ❌ PROBLEM: Timer logic with no cleanup
   useEffect(() => {
     if (isRunning) {
       // ❌ PROBLEM: Storing interval ID in state
       const id = window.setInterval(() => {
         setElapsed(prev => prev + 1);
-        
+
         // ❌ PROBLEM: API call on every tick (performance issue)
         timerApi.updateTimer(timer.id, { elapsed: elapsed + 1 });
       }, 1000);
-      
+
       setIntervalId(id);
+      return () => {
+        clearInterval(id);
+      };
     } else {
       if (intervalId) {
         clearInterval(intervalId);
         setIntervalId(null);
       }
     }
-    // ❌ PROBLEM: Missing cleanup function
-  }, [isRunning]); // ❌ Missing dependencies: intervalId, elapsed, timer.id
-  
+  }, [isRunning, intervalId, elapsed, timer.id]);
+
   // ❌ PROBLEM: Inline callback (causes re-renders in child components)
   const handleStart = () => {
     setIsRunning(true);
     setError(null);
-    
+
     // ❌ PROBLEM: API call in event handler without proper async handling
-    timerApi.updateTimer(timer.id, { 
-      isRunning: true, 
-      startedAt: Date.now() 
-    }).then(response => {
-      if (response.error) {
-        setError(response.error);
-        setIsRunning(false);
-      } else {
-        onUpdate(response.data);
-      }
-    });
+    timerApi
+      .updateTimer(timer.id, {
+        isRunning: true,
+        startedAt: Date.now(),
+      })
+      .then(response => {
+        if (response.error) {
+          setError(response.error);
+          setIsRunning(false);
+        } else {
+          onUpdate(response.data);
+        }
+      });
   };
-  
+
   // ❌ PROBLEM: Inline callback (not memoized)
   const handlePause = () => {
     setIsRunning(false);
-    
-    timerApi.updateTimer(timer.id, { 
-      isRunning: false,
-      elapsed: elapsed 
-    }).then(response => {
-      if (response.error) {
-        setError(response.error);
-      } else {
-        onUpdate(response.data);
-      }
-    });
+
+    timerApi
+      .updateTimer(timer.id, {
+        isRunning: false,
+        elapsed: elapsed,
+      })
+      .then(response => {
+        if (response.error) {
+          setError(response.error);
+        } else {
+          onUpdate(response.data);
+        }
+      });
   };
-  
+
   // ❌ PROBLEM: Inline callback
   const handleReset = () => {
     setElapsed(0);
     setIsRunning(false);
-    
+
     if (intervalId) {
       clearInterval(intervalId);
       setIntervalId(null);
     }
-    
-    timerApi.updateTimer(timer.id, { 
-      elapsed: 0, 
-      isRunning: false 
-    }).then(response => {
-      if (response.error) {
-        setError(response.error);
-      } else {
-        onUpdate(response.data);
-      }
-    });
+
+    timerApi
+      .updateTimer(timer.id, {
+        elapsed: 0,
+        isRunning: false,
+      })
+      .then(response => {
+        if (response.error) {
+          setError(response.error);
+        } else {
+          onUpdate(response.data);
+        }
+      });
   };
-  
+
   // ❌ PROBLEM: Inline callback
   const handleSave = () => {
     setIsSaving(true);
     setError(null);
-    
-    timerApi.updateTimer(timer.id, { 
-      name, 
-      description 
-    }).then(response => {
-      setIsSaving(false);
-      if (response.error) {
-        setError(response.error);
-      } else {
-        setIsEditing(false);
-        onUpdate(response.data);
-      }
-    }).catch(() => {
-      setIsSaving(false);
-      setError('Failed to save timer');
-    });
+
+    timerApi
+      .updateTimer(timer.id, {
+        name,
+        description,
+      })
+      .then(response => {
+        setIsSaving(false);
+        if (response.error) {
+          setError(response.error);
+        } else {
+          setIsEditing(false);
+          onUpdate(response.data);
+        }
+      })
+      .catch(() => {
+        setIsSaving(false);
+        setError('Failed to save timer');
+      });
   };
-  
+
   // ❌ PROBLEM: Inline callback
   const handleDelete = () => {
     if (window.confirm('Are you sure you want to delete this timer?')) {
       if (intervalId) {
         clearInterval(intervalId);
       }
-      
-      timerApi.deleteTimer(timer.id).then(() => {
-        onDelete(timer.id);
-      }).catch(() => {
-        setError('Failed to delete timer');
-      });
+
+      timerApi
+        .deleteTimer(timer.id)
+        .then(() => {
+          onDelete(timer.id);
+        })
+        .catch(() => {
+          setError('Failed to delete timer');
+        });
     }
   };
-  
+
   // ❌ PROBLEM: Inline callback
   const handleCancel = () => {
     setName(timer.name);
@@ -173,37 +188,33 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
     setIsEditing(false);
     setError(null);
   };
-  
+
   // ❌ PROBLEM: Complex rendering logic in component body
   const renderEditMode = () => {
     return (
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Timer Name
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Timer Name</label>
           <input
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={e => setName(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter timer name"
           />
         </div>
-        
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
           <textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={e => setDescription(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Enter description"
             rows={3}
           />
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={handleSave}
@@ -223,7 +234,7 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
       </div>
     );
   };
-  
+
   // ❌ PROBLEM: Complex rendering logic
   const renderViewMode = () => {
     return (
@@ -232,19 +243,19 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
           <h3 className="text-xl font-bold text-gray-800">{timer.name}</h3>
           <p className="text-sm text-gray-600 mt-1">{timer.description}</p>
         </div>
-        
+
         <div className="mb-4">
           <div className="text-4xl font-mono font-bold text-center text-gray-900">
             {formattedTime}
           </div>
           <div className="mt-2 bg-gray-200 rounded-full h-2">
-            <div 
+            <div
               className={`${progressColor} h-2 rounded-full transition-all duration-300`}
               style={{ width: `${Math.min(percentOfDay, 100)}%` }}
             />
           </div>
         </div>
-        
+
         <div className="flex gap-2 mb-3">
           {!isRunning ? (
             <button
@@ -261,7 +272,7 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
               Pause
             </button>
           )}
-          
+
           <button
             onClick={handleReset}
             className="flex-1 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600"
@@ -269,7 +280,7 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
             Reset
           </button>
         </div>
-        
+
         <div className="flex gap-2">
           <button
             onClick={() => setIsEditing(true)}
@@ -287,7 +298,7 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
       </>
     );
   };
-  
+
   return (
     <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
       {error && (
@@ -295,9 +306,9 @@ export const TimerCard: React.FC<TimerCardProps> = ({ timer, onUpdate, onDelete 
           {error}
         </div>
       )}
-      
+
       {isEditing ? renderEditMode() : renderViewMode()}
-      
+
       <div className="mt-4 pt-4 border-t border-gray-200">
         <div className="text-xs text-gray-500">
           Created: {new Date(timer.createdAt).toLocaleDateString()}
