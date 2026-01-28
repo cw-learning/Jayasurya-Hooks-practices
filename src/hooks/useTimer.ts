@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Timer } from '../types/timer';
+import type { Timer } from '../types/timer';
 import { timerApi } from '../api/timerApi';
 
 export type UseTimerResult = {
@@ -7,21 +7,14 @@ export type UseTimerResult = {
   start: () => Promise<void>;
   pause: () => Promise<void>;
   reset: () => Promise<void>;
+  error: string | null;
 };
 
 export function useTimer(initialTimer: Timer): UseTimerResult {
   const [timer, setTimer] = useState<Timer>(initialTimer);
+  const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const timerRef = useRef(initialTimer);
-  useEffect(() => {
-    timerRef.current = timer;
-  }, [timer]);
-
-  const isRunningRef = useRef(initialTimer.isRunning);
-  useEffect(() => {
-    isRunningRef.current = timer.isRunning;
-  }, [timer.isRunning]);
+  const isStartingRef = useRef(false);
 
   const clearTimerInterval = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -30,39 +23,10 @@ export function useTimer(initialTimer: Timer): UseTimerResult {
     }
   }, []);
 
-  const start = useCallback(async () => {
-    if (isRunningRef.current || intervalRef.current !== null) return;
-
-    setTimer(prev => ({ ...prev, isRunning: true }));
-
-    intervalRef.current = setInterval(() => {
-      setTimer(prev => ({ ...prev, elapsed: prev.elapsed + 1 }));
-    }, 1000);
-
-    try {
-      await timerApi.updateTimer(timerRef.current.id, { isRunning: true });
-    } catch (error) {
-      console.error('Failed to update timer:', error);
-    }
-  }, []);
-
-  const pause = useCallback(async () => {
-    clearTimerInterval();
-    setTimer(prev => ({ ...prev, isRunning: false }));
-    const { id, elapsed } = timerRef.current;
-    try {
-      await timerApi.updateTimer(id, { isRunning: false, elapsed });
-    } catch (error) {
-      console.error('Failed to pause timer:', error);
-    }
-  }, [clearTimerInterval]);
-
-  // Sync timer state from prop when timer object changes
   useEffect(() => {
     setTimer(initialTimer);
   }, [initialTimer]);
 
-  // Reconciler effect: manage interval based on timer state
   useEffect(() => {
     if (!timer.isRunning) {
       clearTimerInterval();
@@ -75,19 +39,45 @@ export function useTimer(initialTimer: Timer): UseTimerResult {
     }
   }, [timer.isRunning, clearTimerInterval]);
 
+  const start = useCallback(async () => {
+    if (timer.isRunning || intervalRef.current !== null || isStartingRef.current) return;
+    isStartingRef.current = true;
+    setTimer(prev => ({ ...prev, isRunning: true }));
+    try {
+      await timerApi.updateTimer(timer.id, { isRunning: true });
+      setError(null);
+    } catch {
+      setError('Failed to start timer');
+    } finally {
+      isStartingRef.current = false;
+    }
+  }, [timer, intervalRef]);
+
+  const pause = useCallback(async () => {
+    clearTimerInterval();
+    setTimer(prev => ({ ...prev, isRunning: false }));
+    try {
+      await timerApi.updateTimer(timer.id, { isRunning: false, elapsed: timer.elapsed });
+      setError(null);
+    } catch {
+      setError('Failed to pause timer');
+    }
+  }, [timer, clearTimerInterval]);
+
   const reset = useCallback(async () => {
     clearTimerInterval();
     setTimer(prev => ({ ...prev, elapsed: 0, isRunning: false }));
     try {
-      await timerApi.updateTimer(timerRef.current.id, { elapsed: 0, isRunning: false });
-    } catch (error) {
-      console.error('Failed to reset timer:', error);
+      await timerApi.updateTimer(timer.id, { elapsed: 0, isRunning: false });
+      setError(null);
+    } catch {
+      setError('Failed to reset timer');
     }
-  }, [clearTimerInterval]);
+  }, [timer, clearTimerInterval]);
 
   useEffect(() => {
     return clearTimerInterval;
   }, [clearTimerInterval]);
 
-  return { timer, start, pause, reset };
+  return { timer, start, pause, reset, error };
 }

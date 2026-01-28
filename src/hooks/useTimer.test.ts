@@ -1,7 +1,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useTimer } from './useTimer';
-import { Timer } from '../types/timer';
+import type { Timer } from '../types/timer';
 import * as timerApiModule from '../api/timerApi';
 
 vi.mock('../api/timerApi', () => ({
@@ -18,54 +18,53 @@ const mockTimer: Timer = {
   isRunning: false,
   createdAt: 1700000000000,
 };
-it('increments elapsed time while running', async () => {
-  vi.useFakeTimers();
-  try {
-    const { result } = renderHook(() => useTimer(mockTimer));
-
-    await act(async () => {
-      await result.current.start();
-    });
-
-    act(() => {
-      vi.advanceTimersByTime(3000);
-    });
-
-    expect(result.current.timer.elapsed).toBe(3);
-  } finally {
-    vi.useRealTimers();
-  }
-});
-
-it('cleans up interval on unmount', async () => {
-  vi.useFakeTimers();
-  const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
-
-  try {
-    const { result, unmount } = renderHook(() => useTimer(mockTimer));
-
-    await act(async () => {
-      await result.current.start();
-    });
-
-    // Ensure the interval is created before unmounting
-    act(() => {
-      vi.advanceTimersByTime(0);
-    });
-    // Flush pending state updates
-    await act(async () => {});
-
-    unmount();
-    expect(clearIntervalSpy).toHaveBeenCalled();
-  } finally {
-    clearIntervalSpy.mockRestore();
-    vi.useRealTimers();
-  }
-});
 
 describe('useTimer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('increments elapsed time while running', async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useTimer(mockTimer));
+
+      await act(async () => {
+        await result.current.start();
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+
+      expect(result.current.timer.elapsed).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cleans up interval on unmount', async () => {
+    vi.useFakeTimers();
+    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+
+    try {
+      const { result, unmount } = renderHook(() => useTimer(mockTimer));
+
+      await act(async () => {
+        await result.current.start();
+      });
+
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+      await act(async () => {});
+
+      unmount();
+      expect(clearIntervalSpy).toHaveBeenCalled();
+    } finally {
+      clearIntervalSpy.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it('initializes with the provided timer state', () => {
@@ -160,21 +159,16 @@ describe('useTimer', () => {
   });
 
   it('updates local state even if the API call fails', async () => {
-    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    try {
-      vi.mocked(timerApiModule.timerApi.updateTimer).mockRejectedValueOnce(new Error('API Error'));
+    vi.mocked(timerApiModule.timerApi.updateTimer).mockRejectedValueOnce(new Error('API Error'));
 
-      const { result } = renderHook(() => useTimer(mockTimer));
+    const { result } = renderHook(() => useTimer(mockTimer));
 
-      await act(async () => {
-        await result.current.start();
-      });
+    await act(async () => {
+      await result.current.start();
+    });
 
-      expect(result.current.timer.isRunning).toBe(true);
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to update timer:', expect.any(Error));
-    } finally {
-      consoleErrorSpy.mockRestore();
-    }
+    expect(result.current.timer.isRunning).toBe(true);
+    expect(result.current.error).toBe('Failed to start timer');
   });
 
   it('prevents double-start from creating multiple intervals', async () => {
@@ -192,6 +186,49 @@ describe('useTimer', () => {
 
       expect(result.current.timer.elapsed).toBe(2);
       expect(timerApiModule.timerApi.updateTimer).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('pauses after start and preserves elapsed time', async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useTimer(mockTimer));
+      await act(async () => {
+        await result.current.start();
+      });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      await act(async () => {
+        await result.current.pause();
+      });
+      expect(result.current.timer.isRunning).toBe(false);
+      expect(result.current.timer.elapsed).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('pauses after reset and keeps elapsed at 0', async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useTimer(mockTimer));
+      await act(async () => {
+        await result.current.start();
+      });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      await act(async () => {
+        await result.current.reset();
+      });
+      await act(async () => {
+        await result.current.pause();
+      });
+      expect(result.current.timer.isRunning).toBe(false);
+      expect(result.current.timer.elapsed).toBe(0);
     } finally {
       vi.useRealTimers();
     }
