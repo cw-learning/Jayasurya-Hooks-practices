@@ -5,8 +5,6 @@ import { useLocalStorage } from './useLocalStorage';
 describe('useLocalStorage', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    vi.clearAllMocks();
-    vi.restoreAllMocks();
   });
 
   afterEach(() => {

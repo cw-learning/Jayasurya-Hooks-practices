@@ -8,16 +8,16 @@ export function useInterval(callback: () => void, delay: number | null): void {
   }, [callback]);
 
   useEffect(() => {
-    if (delay === null) {
-      return undefined;
+    if (delay === null) return;
+    if (!Number.isFinite(delay) || delay < 0) {
+      console.error(`useInterval received invalid delay: ${delay}`);
+      return;
     }
 
-    const id = setInterval(() => {
+    const id = window.setInterval(() => {
       savedCallback.current?.();
     }, delay);
 
-    return () => {
-      clearInterval(id);
-    };
+    return () => window.clearInterval(id);
   }, [delay]);
 }
