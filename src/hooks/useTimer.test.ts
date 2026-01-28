@@ -4,7 +4,6 @@ import { useTimer } from './useTimer';
 import { Timer } from '../types/timer';
 import * as timerApiModule from '../api/timerApi';
 
-// Mock only the external API dependency
 vi.mock('../api/timerApi', () => ({
   timerApi: {
     updateTimer: vi.fn().mockResolvedValue({}),
@@ -17,8 +16,52 @@ const mockTimer: Timer = {
   description: 'Test',
   elapsed: 0,
   isRunning: false,
-  createdAt: Date.now(),
+  createdAt: 1700000000000,
 };
+it('increments elapsed time while running', async () => {
+  vi.useFakeTimers();
+  try {
+    const { result } = renderHook(() => useTimer(mockTimer));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+
+    expect(result.current.timer.elapsed).toBe(3);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('cleans up interval on unmount', async () => {
+  vi.useFakeTimers();
+  const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+
+  try {
+    const { result, unmount } = renderHook(() => useTimer(mockTimer));
+
+    await act(async () => {
+      await result.current.start();
+    });
+
+    // Ensure the interval is created before unmounting
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    // Flush pending state updates
+    await act(async () => {});
+
+    unmount();
+    expect(clearIntervalSpy).toHaveBeenCalled();
+  } finally {
+    clearIntervalSpy.mockRestore();
+    vi.useRealTimers();
+  }
+});
 
 describe('useTimer', () => {
   beforeEach(() => {
@@ -118,30 +161,39 @@ describe('useTimer', () => {
 
   it('updates local state even if the API call fails', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      vi.mocked(timerApiModule.timerApi.updateTimer).mockRejectedValueOnce(new Error('API Error'));
 
-    vi.mocked(timerApiModule.timerApi.updateTimer).mockRejectedValueOnce(new Error('API Error'));
+      const { result } = renderHook(() => useTimer(mockTimer));
 
-    const { result } = renderHook(() => useTimer(mockTimer));
+      await act(async () => {
+        await result.current.start();
+      });
 
-    await act(async () => {
-      await result.current.start();
-    });
-
-    // Behavior-first assertion
-    expect(result.current.timer.isRunning).toBe(true);
-
-    // Logging is part of error-handling behavior
-    expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to update timer:', expect.any(Error));
-
-    consoleErrorSpy.mockRestore();
+      expect(result.current.timer.isRunning).toBe(true);
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to update timer:', expect.any(Error));
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
   });
 
-  it('cleans up interval on unmount', () => {
-    const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+  it('prevents double-start from creating multiple intervals', async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useTimer(mockTimer));
 
-    const { unmount } = renderHook(() => useTimer(mockTimer));
-    unmount();
+      await act(async () => {
+        await Promise.all([result.current.start(), result.current.start()]);
+      });
 
-    expect(clearIntervalSpy).toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      expect(result.current.timer.elapsed).toBe(2);
+      expect(timerApiModule.timerApi.updateTimer).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

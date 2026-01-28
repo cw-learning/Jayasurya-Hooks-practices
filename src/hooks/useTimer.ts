@@ -2,9 +2,26 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Timer } from '../types/timer';
 import { timerApi } from '../api/timerApi';
 
-export function useTimer(initialTimer: Timer) {
+export type UseTimerResult = {
+  timer: Timer;
+  start: () => Promise<void>;
+  pause: () => Promise<void>;
+  reset: () => Promise<void>;
+};
+
+export function useTimer(initialTimer: Timer): UseTimerResult {
   const [timer, setTimer] = useState<Timer>(initialTimer);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const timerRef = useRef(initialTimer);
+  useEffect(() => {
+    timerRef.current = timer;
+  }, [timer]);
+
+  const isRunningRef = useRef(initialTimer.isRunning);
+  useEffect(() => {
+    isRunningRef.current = timer.isRunning;
+  }, [timer.isRunning]);
 
   const clearTimerInterval = useCallback(() => {
     if (intervalRef.current !== null) {
@@ -12,12 +29,6 @@ export function useTimer(initialTimer: Timer) {
       intervalRef.current = null;
     }
   }, []);
-
-  const isRunningRef = useRef(false);
-
-  useEffect(() => {
-    isRunningRef.current = timer.isRunning;
-  }, [timer.isRunning]);
 
   const start = useCallback(async () => {
     if (isRunningRef.current || intervalRef.current !== null) return;
@@ -35,16 +46,9 @@ export function useTimer(initialTimer: Timer) {
     }
   }, []);
 
-  const timerRef = useRef(initialTimer);
-  useEffect(() => {
-    timerRef.current = timer;
-  }, [timer]);
-
   const pause = useCallback(async () => {
     clearTimerInterval();
-
     setTimer(prev => ({ ...prev, isRunning: false }));
-
     const { id, elapsed } = timerRef.current;
     try {
       await timerApi.updateTimer(id, { isRunning: false, elapsed });
@@ -53,45 +57,37 @@ export function useTimer(initialTimer: Timer) {
     }
   }, [clearTimerInterval]);
 
+  // Sync timer state from prop when timer object changes
   useEffect(() => {
     setTimer(initialTimer);
+  }, [initialTimer]);
 
-    // Reconcile interval with external source of truth
-    if (!initialTimer.isRunning) {
+  // Reconciler effect: manage interval based on timer state
+  useEffect(() => {
+    if (!timer.isRunning) {
       clearTimerInterval();
       return;
     }
-
-    // Optional: if you want to auto-start when external state says running
     if (intervalRef.current === null) {
       intervalRef.current = setInterval(() => {
         setTimer(prev => ({ ...prev, elapsed: prev.elapsed + 1 }));
       }, 1000);
     }
-  }, [initialTimer, clearTimerInterval]);
+  }, [timer.isRunning, clearTimerInterval]);
 
   const reset = useCallback(async () => {
     clearTimerInterval();
-
     setTimer(prev => ({ ...prev, elapsed: 0, isRunning: false }));
-
     try {
-      await timerApi.updateTimer(timer.id, {
-        elapsed: 0,
-        isRunning: false,
-      });
+      await timerApi.updateTimer(timerRef.current.id, { elapsed: 0, isRunning: false });
     } catch (error) {
       console.error('Failed to reset timer:', error);
     }
-  }, [timer.id, clearTimerInterval]);
+  }, [clearTimerInterval]);
 
   useEffect(() => {
     return clearTimerInterval;
   }, [clearTimerInterval]);
-
-  useEffect(() => {
-    setTimer(initialTimer);
-  }, [initialTimer]);
 
   return { timer, start, pause, reset };
 }
