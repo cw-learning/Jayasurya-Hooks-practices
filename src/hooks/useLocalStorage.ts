@@ -20,7 +20,7 @@ export function useLocalStorage<T>(
     }
     try {
       const item = window.localStorage.getItem(key);
-      return item ? deserialize(item) : initialValue;
+      return item === null ? initialValue : deserialize(item);
     } catch (error) {
       console.error(`Error reading localStorage key "${key}":`, error);
       return initialValue;
@@ -50,7 +50,7 @@ export function useLocalStorage<T>(
     if (typeof window === 'undefined') return;
     try {
       const item = window.localStorage.getItem(key);
-      setStoredValue(item ? deserialize(item) : initialValue);
+      setStoredValue(item === null ? initialValue : deserialize(item));
     } catch (error) {
       console.error(`Error reading localStorage key "${key}":`, error);
       setStoredValue(initialValue);
@@ -59,7 +59,7 @@ export function useLocalStorage<T>(
 
   useEffect(() => {
     if (typeof window === 'undefined') {
-      return undefined;
+      return;
     }
 
     const handleStorageChange = (event: StorageEvent) => {

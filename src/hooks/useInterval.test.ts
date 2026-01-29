@@ -153,4 +153,21 @@ describe('useInterval', () => {
 
     expect(callback).toHaveBeenCalledTimes(1);
   });
+  it('should not schedule interval for invalid delays', () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const callback = vi.fn();
+
+    renderHook(() => useInterval(callback, Number.NaN));
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('useInterval received invalid delay')
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
 });

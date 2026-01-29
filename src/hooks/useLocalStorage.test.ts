@@ -61,7 +61,9 @@ describe('useLocalStorage', () => {
     });
 
     expect(result.current[0]).toEqual(updatedObject);
-    expect(JSON.parse(window.localStorage.getItem('testKey')!)).toEqual(updatedObject);
+    const raw = window.localStorage.getItem('testKey');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw as string)).toEqual(updatedObject);
   });
 
   it('should work with arrays', () => {
@@ -75,7 +77,9 @@ describe('useLocalStorage', () => {
     });
 
     expect(result.current[0]).toEqual([1, 2, 3, 4]);
-    expect(JSON.parse(window.localStorage.getItem('testKey')!)).toEqual([1, 2, 3, 4]);
+    const raw = window.localStorage.getItem('testKey');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw as string)).toEqual([1, 2, 3, 4]);
   });
 
   it('should handle parse errors gracefully', () => {
@@ -139,7 +143,9 @@ describe('useLocalStorage', () => {
     });
 
     expect(result.current[0]).toBe(true);
-    expect(JSON.parse(window.localStorage.getItem('boolKey')!)).toBe(true);
+    const raw = window.localStorage.getItem('boolKey');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw as string)).toBe(true);
   });
 
   it('should handle null values', () => {
@@ -158,5 +164,36 @@ describe('useLocalStorage', () => {
     });
 
     expect(result.current[0]).toBe(null);
+  });
+  it('should rehydrate when key changes', () => {
+    window.localStorage.setItem('keyA', JSON.stringify('a'));
+    window.localStorage.setItem('keyB', JSON.stringify('b'));
+
+    const { result, rerender } = renderHook(
+      ({ storageKey }) => useLocalStorage(storageKey, 'fallback'),
+      { initialProps: { storageKey: 'keyA' } }
+    );
+
+    expect(result.current[0]).toBe('a');
+
+    rerender({ storageKey: 'keyB' });
+    expect(result.current[0]).toBe('b');
+  });
+
+  it('should reset to initialValue when storage event removes the key', () => {
+    const { result } = renderHook(() => useLocalStorage('testKey', 'initial'));
+
+    act(() => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'testKey',
+          oldValue: JSON.stringify('value'),
+          newValue: null,
+          storageArea: window.localStorage,
+        })
+      );
+    });
+
+    expect(result.current[0]).toBe('initial');
   });
 });
