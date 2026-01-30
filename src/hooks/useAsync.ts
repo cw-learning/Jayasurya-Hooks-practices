@@ -70,13 +70,13 @@ export function useAsync<T, TArgs extends readonly unknown[] = []>(
   }, []);
 
   const execute = useCallback(async (...args: TArgs): Promise<T> => {
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
     if (!isMountedRef.current) {
       return asyncFunctionRef.current(...args);
     }
 
     const requestId = ++latestRequestIdRef.current;
-
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
       const response = await asyncFunctionRef.current(...args);
